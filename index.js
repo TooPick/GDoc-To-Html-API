@@ -49,7 +49,7 @@ app.get("/getAndConvert", (req, res) => {
     Utils.getFromGoogleDrive(req.query.url).then((filename) => {
       Utils.convertDocxToHtml(filename).then(function (result) {
         var html = result.value; // The generated HTML
-        res.status(200).send(html);
+        res.status(200).json({ title: "test", html });
       });
     });
   }
