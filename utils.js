@@ -57,7 +57,9 @@ async function getFromGoogleDrive(fileUrl) {
     },
   });
 
-  const filename = new Date().getTime().toString() + ".docx";
+  const fileTitle = await getFileTitle(fileId);
+
+  const filename = fileTitle + ".docx";
 
   try {
     fs.writeFileSync(INPUT_DIR + filename, httpResponse.data);
@@ -69,8 +71,21 @@ async function getFromGoogleDrive(fileUrl) {
   } catch (err) {
     logger.error(`[Utils - getFromGoogleDrive]`, err);
   }
-
   return filename;
+}
+
+async function getFileTitle(fileId) {
+  const url =
+    "https://www.googleapis.com/drive/v3/files/" + fileId + "?key=" + API_KEY;
+  logger.info(
+    `[Utils - getFileTitle] Trying to get the file title with Google API : "${url}".`
+  );
+
+  const httpResponse = await axios.get(url, {
+    responseType: "application/json",
+  });
+
+  return JSON.parse(await httpResponse.data).name;
 }
 
 function extractFileId(fileUrl) {
