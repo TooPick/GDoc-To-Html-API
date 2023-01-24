@@ -1,13 +1,16 @@
 import winston from "winston";
+import { format } from "winston";
+const { printf } = format;
 
 const LOGS_DIR = process.env.LOGS_DIR;
 
+const myFormat = printf(({ level, message, timestamp }) => {
+  return `${timestamp} ${level}: ${message}`;
+});
+
 const logger = winston.createLogger({
   level: "info",
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
+  format: winston.format.combine(winston.format.timestamp(), myFormat),
   transports: [
     //
     // - Write all logs with importance level of `error` or less to `error.log`
