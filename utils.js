@@ -50,12 +50,20 @@ async function getFromGoogleDrive(fileUrl) {
     `[Utils - getFromGoogleDrive] Trying to export file with Google API : "${url}".`
   );
 
-  const httpResponse = await axios.get(url, {
-    responseType: "arraybuffer",
-    headers: {
-      Accept: mimeType,
-    },
-  });
+  let httpResponse;
+  try {
+    httpResponse = await axios.get(url, {
+      responseType: "arraybuffer",
+      headers: {
+        Accept: mimeType,
+      },
+    });
+  } catch (err) {
+    logger.warn(
+      `[Utils - getFromGoogleDrive] Error [${err.response.status}]: ${err.response.statusText}`
+    );
+    return null;
+  }
 
   const fileTitle = await getFileTitle(fileId);
 
