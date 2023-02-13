@@ -46,12 +46,10 @@ app.get("/getAndConvert", (req, res) => {
     )}`
   );
   if (req.query.url) {
-    Utils.getFromGoogleDrive(req.query.url).then((filename) => {
+    Utils.getFromGoogleDrive(req.query.url).then(({ filename, fileTitle }) => {
       if (filename !== null) {
-        Utils.convertDocxToHtml(filename).then(function (result) {
-          var html = result.value; // The generated HTML
-          const fileNameSplit = filename.split(".");
-          res.status(200).json({ title: fileNameSplit[0], html });
+        Utils.extractHtmlFromZip(filename, true).then(function (html) {
+          res.status(200).json({ title: fileTitle, html });
         });
       }
     });

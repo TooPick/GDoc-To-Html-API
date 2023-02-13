@@ -137,6 +137,10 @@ dist
 input/*
 !input/.gitkeep
 
+#Extract folder
+extract/*
+!extract/.gitkeep
+
 #Logs folder
 logs/*
 !logs/.gitkeep

@@ -1,11 +1,17 @@
 import fs from "fs";
 import mammoth from "mammoth";
 import axios from "axios";
+import extract from "extract-zip";
+import { resolve } from "path";
+import htmlInlineExternal from "html-inline-external";
 
 import logger from "./winstonConfig.js";
 
 const INPUT_DIR = process.env.INPUT_DIR;
+const EXTRACT_DIR = process.env.EXTRACT_DIR;
 const API_KEY = process.env.GOOGLE_API_KEY;
+
+const UNLINK_TIMEOUT = 500;
 
 function convertDocxToHtml(filename) {
   const path = INPUT_DIR + filename;
@@ -21,7 +27,7 @@ function convertDocxToHtml(filename) {
           logger.info(
             `[Utils - convertDocxToHtml] Temp file '${path}' successfully deleted.`
           );
-        }, 500);
+        }, UNLINK_TIMEOUT);
       } catch (err) {
         logger.error(`[Utils - convertDocxToHtml]`, err);
       }
@@ -30,12 +36,87 @@ function convertDocxToHtml(filename) {
   return promise;
 }
 
+function findHtmlFile(folder) {
+  const extension = ".html";
+  const files = fs.readdirSync(folder);
+  return files.filter((file) =>
+    file.match(new RegExp(`.*\.(${extension})$`, "ig"))
+  );
+}
+
+function unbackslash(s) {
+  const text = s.replace(/\\([\\rnt'"])/g, function (match, p1) {
+    if (p1 === "n") return "\n";
+    if (p1 === "r") return "\r";
+    if (p1 === "t") return "\t";
+    if (p1 === "\\") return "\\";
+    return p1; // unrecognised escape
+  });
+  return text.replace(/"/g, "'");
+}
+
+async function transformHtmlFile(htmlFile) {
+  const result = await htmlInlineExternal({ src: htmlFile });
+  return unbackslash(result);
+}
+
+async function extractHtmlFromZip(filename, autoDeleteZip) {
+  const path = INPUT_DIR + filename;
+  const fileNameSplit = filename.split(".");
+  const relativeTarget = EXTRACT_DIR + fileNameSplit[0] + "/";
+  const target = resolve(relativeTarget);
+
+  logger.info(`[Utils - extractHtmlFromZip] Extracting '${path}' zip file.`);
+
+  let data = null;
+  try {
+    await extract(path, { dir: target });
+    logger.info(
+      `[Utils - extractHtmlFromZip] Extraction of '${path}' complete.`
+    );
+    const htmlFiles = findHtmlFile(relativeTarget);
+    if (htmlFiles && htmlFiles.length > 0) {
+      // Transform html folder into inline file
+      data = await transformHtmlFile(relativeTarget + htmlFiles[0]);
+
+      // Delete extraction folder
+      try {
+        setTimeout(() => {
+          fs.rmSync(relativeTarget, { recursive: true, force: true });
+          logger.info(
+            `[Utils - extractHtmlFromZip] Extraction folder '${relativeTarget}' successfully deleted.`
+          );
+        }, UNLINK_TIMEOUT);
+      } catch (err) {
+        logger.error(`[Utils - extractHtmlFromZip]`, err);
+      }
+    }
+  } catch (err) {
+    logger.error(`[Utils - extractHtmlFromZip]`, err);
+  }
+
+  // Delete input zip
+  if (autoDeleteZip) {
+    try {
+      setTimeout(() => {
+        fs.unlinkSync(path);
+        logger.info(
+          `[Utils - extractHtmlFromZip] Temp zip file '${path}' successfully deleted.`
+        );
+      }, UNLINK_TIMEOUT);
+    } catch (err) {
+      logger.error(`[Utils - extractHtmlFromZip]`, err);
+    }
+  }
+
+  return data;
+}
+
 async function getFromGoogleDrive(fileUrl) {
   logger.info(
     `[Utils - getFromGoogleDrive] Getting Google Doc file from url: "${fileUrl}".`
   );
-  const mimeType =
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  const mimeType = "application/zip";
 
   const fileId = extractFileId(fileUrl);
 
@@ -67,7 +148,9 @@ async function getFromGoogleDrive(fileUrl) {
 
   const fileTitle = await getFileTitle(fileId);
 
-  const filename = fileTitle + ".docx";
+  const extension = ".zip";
+  const tempFilename = new Date().getTime();
+  const filename = tempFilename + extension;
 
   try {
     fs.writeFileSync(INPUT_DIR + filename, httpResponse.data);
@@ -79,7 +162,7 @@ async function getFromGoogleDrive(fileUrl) {
   } catch (err) {
     logger.error(`[Utils - getFromGoogleDrive]`, err);
   }
-  return filename;
+  return { filename, fileTitle };
 }
 
 async function getFileTitle(fileId) {
@@ -107,4 +190,9 @@ function extractFileId(fileUrl) {
   return null;
 }
 
-export default { convertDocxToHtml, getFromGoogleDrive, extractFileId };
+export default {
+  convertDocxToHtml,
+  getFromGoogleDrive,
+  extractFileId,
+  extractHtmlFromZip,
+};
